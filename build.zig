@@ -19,4 +19,21 @@ pub fn build(b: *std.Build) void {
     exe.linkLibC();
 
     exe.install();
+
+    b.installArtifact(exe);
+
+    // Creates a step for unit testing.
+    const main_tests = b.addTest(.{
+        .root_source_file = .{ .path = "src/test.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const run_unit_tests = b.addRunArtifact(main_tests);
+
+    // This creates a build step. It will be visible in the `zig build --help` menu,
+    // and can be selected like this: `zig build test`
+    // This will evaluate the `test` step rather than the default, which is "install".
+    const test_step = b.step("test", "Run library tests");
+    test_step.dependOn(&run_unit_tests.step);
 }

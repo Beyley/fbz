@@ -33,8 +33,9 @@ fn getShiftAmount(comptime SourceType: type, comptime DestType: type) struct { a
     }
 }
 
-fn intMax(comptime Type: type) Type {
-    return @as(Type, @as(Type, 1) << @typeInfo(Type).Int.bits) - 1;
+pub fn shiftLeftShiftingInLSB(comptime Type: type, x: anytype, comptime n: comptime_int) Type {
+    const mask = @as(Type, (1 << n) - 1);
+    return @intCast(Type, (x << n) | ((x & 1) * mask));
 }
 
 fn make16Color(comptime RedType: type, comptime BlueType: type, comptime GreenType: type, r: anytype, g: anytype, b: anytype) u16 {
@@ -57,12 +58,20 @@ fn make16Color(comptime RedType: type, comptime BlueType: type, comptime GreenTy
             if (shift.direction == .Right) {
                 destRed = @intCast(dest, r >> shift.amount);
             } else if (shift.direction == .Left) {
-                destRed = @intCast(dest, r << shift.amount);
+                // destRed = @intCast(dest, r << shift.amount);
+                destRed = @intCast(dest, shiftLeftShiftingInLSB(RedType, r, shift.amount));
             } else {
                 destRed = @as(dest, r);
             }
         },
-        else => @compileError("Converting from that integer format is not supported!"),
+        .Float => {
+            const dest: type = u5;
+
+            const max = @as(RedType, std.math.maxInt(dest));
+
+            destRed = @floatToInt(dest, r * max);
+        },
+        else => @compileError("Converting from that format is not supported!"),
     }
 
     switch (@typeInfo(GreenType)) {
@@ -78,12 +87,20 @@ fn make16Color(comptime RedType: type, comptime BlueType: type, comptime GreenTy
             if (shift.direction == .Right) {
                 destGreen = @intCast(dest, g >> shift.amount);
             } else if (shift.direction == .Left) {
-                destGreen = @intCast(dest, g << shift.amount);
+                // destGreen = @intCast(dest, g << shift.amount);
+                destGreen = @intCast(dest, shiftLeftShiftingInLSB(GreenType, g, shift.amount));
             } else {
                 destGreen = @as(dest, g);
             }
         },
-        else => @compileError("Converting from that integer format is not supported!"),
+        .Float => {
+            const dest: type = u6;
+
+            const max = @as(GreenType, std.math.maxInt(dest));
+
+            destGreen = @floatToInt(dest, g * max);
+        },
+        else => @compileError("Converting from that format is not supported!"),
     }
 
     switch (@typeInfo(BlueType)) {
@@ -99,12 +116,20 @@ fn make16Color(comptime RedType: type, comptime BlueType: type, comptime GreenTy
             if (shift.direction == .Right) {
                 destBlue = @intCast(dest, b >> shift.amount);
             } else if (shift.direction == .Left) {
-                destBlue = @intCast(dest, b << shift.amount);
+                // destBlue = @intCast(dest, b << shift.amount);
+                destBlue = @intCast(dest, shiftLeftShiftingInLSB(BlueType, b, shift.amount));
             } else {
                 destBlue = @as(dest, b);
             }
         },
-        else => @compileError("Converting from that integer format is not supported!"),
+        .Float => {
+            const dest: type = u5;
+
+            const max = @as(BlueType, std.math.maxInt(dest));
+
+            destBlue = @floatToInt(dest, b * max);
+        },
+        else => @compileError("Converting from that format is not supported!"),
     }
 
     return (((@as(u16, destRed)) << 11) |
@@ -199,6 +224,15 @@ pub fn convertToRGB565(allocator: std.mem.Allocator, image: *img.Image) ![]u16 {
 
             return pixels;
         },
-        .float32 => @panic("TODO: float32"),
+        .float32 => {
+            var pixels = try allocator.alloc(u16, image.width * image.height);
+
+            var old_pixels: []img.color.Colorf32 = image.pixels.float32;
+            for (pixels, 0..) |*pixel, i| {
+                pixel.* = make16Color(f32, f32, f32, old_pixels[i].r, old_pixels[i].g, old_pixels[i].b);
+            }
+
+            return pixels;
+        },
     };
 }
