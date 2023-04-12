@@ -91,6 +91,42 @@ pub fn main() !void {
         try Framebuffer.setCursorBlink(false);
 
         try displayImage(allocator, framebuffer_path, &image);
+    } else if (std.mem.eql(u8, extension, ".bmp")) {
+        log("Loading BMP file", .{});
+
+        //load the image
+        var image: Image = try img.bmp.Bitmap.readImage(allocator, &stream);
+        defer image.deinit();
+
+        log("Loaded BMP file with size {d}x{d}", .{ image.width, image.height });
+
+        try Framebuffer.setCursorBlink(false);
+
+        try displayImage(allocator, framebuffer_path, &image);
+    } else if (std.mem.eql(u8, extension, ".qoi")) {
+        log("Loading QOI file", .{});
+
+        //load the image
+        var image: Image = try img.qoi.QOI.readImage(allocator, &stream);
+        defer image.deinit();
+
+        log("Loaded QOI file with size {d}x{d}", .{ image.width, image.height });
+
+        try Framebuffer.setCursorBlink(false);
+
+        try displayImage(allocator, framebuffer_path, &image);
+    } else if (std.mem.eql(u8, extension, ".tga")) {
+        log("Loading TGA file", .{});
+
+        //load the image
+        var image: Image = try img.tga.TGA.readImage(allocator, &stream);
+        defer image.deinit();
+
+        log("Loaded TGA file with size {d}x{d}", .{ image.width, image.height });
+
+        try Framebuffer.setCursorBlink(false);
+
+        try displayImage(allocator, framebuffer_path, &image);
     } else {
         std.log.err("Unsupported file format: {s}\n", .{extension});
         return;

@@ -18,8 +18,6 @@ pub fn build(b: *std.Build) void {
     //We need libc to do ioctls on the framebuffer
     exe.linkLibC();
 
-    exe.install();
-
     b.installArtifact(exe);
 
     // Creates a step for unit testing.
