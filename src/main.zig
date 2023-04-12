@@ -120,6 +120,7 @@ fn displayImage(allocator: std.mem.Allocator, framebuffer: []const u8, image: *I
     }
 
     var pixels: []u16 = try FormatConvert.convertToRGB565(allocator, image);
+    defer allocator.free(pixels);
     var pixelsU8: [*]u8 = @ptrCast([*]u8, pixels);
 
     var fbu8 = try Framebuffer.mapFramebuffer(file, fb_info);
