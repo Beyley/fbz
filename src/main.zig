@@ -168,7 +168,8 @@ pub fn main() !void {
 
         for (display_images) |image| {
             //HACK: This is a hack to slow down the display of images because std.time.sleep() is inconsistent in oc2
-            for (0..5) |_| {
+            //NOTE: at 100MHz, 4 iterations is about 0.5 seconds
+            for (0..4) |_| {
                 try Framebuffer.displayImage(allocator, fb.fb_ptr, fb.info, image, .{ .never_clear_fb = true });
             }
         }
