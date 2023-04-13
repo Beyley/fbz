@@ -64,122 +64,127 @@ pub fn main() !void {
         framebuffer_path = fb;
 
     //If the user didn't specify an image, print an error and exit
-    if (res.positionals.len != 1) {
-        debug.print("You need to specify an image!\n", .{});
+    if (res.positionals.len == 1) {
+        //get the file extension
+        var extension = std.fs.path.extension(res.positionals[0]);
+
+        //try to open the image file
+        var file = try std.fs.cwd().openFile(res.positionals[0], .{});
+
+        //create the image stream
+        var stream: Image.Stream = .{ .file = file };
+
+        //check the file extension
+        if (std.mem.eql(u8, extension, ".png")) {
+            log("Loading PNG file", .{});
+
+            //load the image
+            var image: Image = try img.png.load(&stream, allocator, .{ .temp_allocator = allocator });
+            defer image.deinit();
+
+            log("Loaded PNG file with size {d}x{d}", .{ image.width, image.height });
+
+            try Framebuffer.setCursorBlink(false);
+
+            try displaySingleImage(allocator, framebuffer_path, &image);
+        } else if (std.mem.eql(u8, extension, ".bmp")) {
+            log("Loading BMP file", .{});
+
+            //load the image
+            var image: Image = try img.bmp.Bitmap.readImage(allocator, &stream);
+            defer image.deinit();
+
+            log("Loaded BMP file with size {d}x{d}", .{ image.width, image.height });
+
+            try Framebuffer.setCursorBlink(false);
+
+            try displaySingleImage(allocator, framebuffer_path, &image);
+        } else if (std.mem.eql(u8, extension, ".qoi")) {
+            log("Loading QOI file", .{});
+
+            //load the image
+            var image: Image = try img.qoi.QOI.readImage(allocator, &stream);
+            defer image.deinit();
+
+            log("Loaded QOI file with size {d}x{d}", .{ image.width, image.height });
+
+            try Framebuffer.setCursorBlink(false);
+
+            try displaySingleImage(allocator, framebuffer_path, &image);
+        } else if (std.mem.eql(u8, extension, ".tga")) {
+            log("Loading TGA file", .{});
+
+            //load the image
+            var image: Image = try img.tga.TGA.readImage(allocator, &stream);
+            defer image.deinit();
+
+            log("Loaded TGA file with size {d}x{d}", .{ image.width, image.height });
+
+            try Framebuffer.setCursorBlink(false);
+
+            try displaySingleImage(allocator, framebuffer_path, &image);
+        } else {
+            std.log.err("Unsupported file format: {s}\n", .{extension});
+            return;
+        }
         return;
     }
 
-    //get the file extension
-    var extension = std.fs.path.extension(res.positionals[0]);
+    if (res.positionals.len > 1) {
+        var display_images = try allocator.alloc(Framebuffer.DisplayImage, res.positionals.len);
+        defer allocator.free(display_images);
 
-    //try to open the png file
-    var file = try std.fs.cwd().openFile(res.positionals[0], .{});
+        for (res.positionals, 0..) |positional, i| {
+            log("Loading image {s}. {d}/{d}...", .{ positional, i + 1, res.positionals.len });
 
-    //create the image stream
-    var stream: Image.Stream = .{ .file = file };
+            //try to open the file
+            var file = try std.fs.cwd().openFile(positional, .{});
+            defer file.close();
 
-    //check the file extension
-    if (std.mem.eql(u8, extension, ".png")) {
-        log("Loading PNG file", .{});
+            //create the image stream
+            var stream: Image.Stream = .{ .file = file };
 
-        //load the image
-        var image: Image = try img.png.load(&stream, allocator, .{ .temp_allocator = allocator });
-        defer image.deinit();
+            //load the image
+            var image: Image = try img.png.load(&stream, allocator, .{ .temp_allocator = allocator });
+            defer image.deinit();
 
-        log("Loaded PNG file with size {d}x{d}", .{ image.width, image.height });
+            display_images[i].data = try FormatConvert.convertToRGB565(allocator, &image);
+            display_images[i].width = image.width;
+            display_images[i].height = image.height;
 
+            log("Loaded image {s} with size {d}x{d}. {d}/{d}", .{ positional, image.width, image.height, i + 1, res.positionals.len });
+        }
+
+        //Free the converted image data
+        defer for (display_images) |image| {
+            allocator.free(image.data);
+        };
+
+        //Disable cursor blinking on the framebuffer
         try Framebuffer.setCursorBlink(false);
 
-        try displayImage(allocator, framebuffer_path, &image);
-    } else if (std.mem.eql(u8, extension, ".bmp")) {
-        log("Loading BMP file", .{});
+        const fb = try Framebuffer.prepareFramebuffer(framebuffer_path);
+        defer fb.file.close();
 
-        //load the image
-        var image: Image = try img.bmp.Bitmap.readImage(allocator, &stream);
-        defer image.deinit();
+        for (display_images) |image| {
+            //HACK: This is a hack to slow down the display of images because std.time.sleep() is inconsistent in oc2
+            for (0..5) |_| {
+                try Framebuffer.displayImage(allocator, fb.fb_ptr, fb.info, image, .{ .never_clear_fb = true });
+            }
+        }
 
-        log("Loaded BMP file with size {d}x{d}", .{ image.width, image.height });
-
-        try Framebuffer.setCursorBlink(false);
-
-        try displayImage(allocator, framebuffer_path, &image);
-    } else if (std.mem.eql(u8, extension, ".qoi")) {
-        log("Loading QOI file", .{});
-
-        //load the image
-        var image: Image = try img.qoi.QOI.readImage(allocator, &stream);
-        defer image.deinit();
-
-        log("Loaded QOI file with size {d}x{d}", .{ image.width, image.height });
-
-        try Framebuffer.setCursorBlink(false);
-
-        try displayImage(allocator, framebuffer_path, &image);
-    } else if (std.mem.eql(u8, extension, ".tga")) {
-        log("Loading TGA file", .{});
-
-        //load the image
-        var image: Image = try img.tga.TGA.readImage(allocator, &stream);
-        defer image.deinit();
-
-        log("Loaded TGA file with size {d}x{d}", .{ image.width, image.height });
-
-        try Framebuffer.setCursorBlink(false);
-
-        try displayImage(allocator, framebuffer_path, &image);
-    } else {
-        std.log.err("Unsupported file format: {s}\n", .{extension});
         return;
     }
+
+    log("No image specified...", .{});
 }
 
-///Centers an image from a top left origin
-fn centerImage(image: *Image, fb_info: Framebuffer.FramebufferInfo) struct { x: usize, y: usize } {
-    var x = (fb_info.width - image.width) / 2;
-    var y = (fb_info.height - image.height) / 2;
-
-    return .{ .x = x, .y = y };
-}
-
-fn displayImage(allocator: std.mem.Allocator, framebuffer: []const u8, image: *Image) !void {
-    var file: fs.File = try fs.openFileAbsolute(framebuffer, .{ .mode = .read_write });
-    defer file.close();
-
-    var fb_info = try Framebuffer.getFramebufferInfo(file);
-
-    var coords = centerImage(image, fb_info);
-    log("Drawing image at {d}, {d}", .{ coords.x, coords.y });
-
-    //we dont support, scaling images, so lets die if its too tall or too wide
-    if (image.width > fb_info.width or image.height > fb_info.height) {
-        return error.ImageTooWideOrTall;
-    }
+fn displaySingleImage(allocator: std.mem.Allocator, framebuffer_path: []const u8, image: *Image) !void {
+    const fb = try Framebuffer.prepareFramebuffer(framebuffer_path);
+    defer fb.file.close();
 
     var pixels: []u16 = try FormatConvert.convertToRGB565(allocator, image);
     defer allocator.free(pixels);
-    var pixelsU8: [*]u8 = @ptrCast([*]u8, pixels);
 
-    var fbu8 = try Framebuffer.mapFramebuffer(file, fb_info);
-
-    var fb = @ptrCast([*]u8, @alignCast(@alignOf(u8), fbu8));
-
-    if (image.width != fb_info.width or image.height != fb_info.height) {
-        Framebuffer.clearFramebuffer(fb, fb_info);
-    }
-
-    var ptrSrc = pixelsU8;
-    var ptrDst = fb + (fb_info.line_length * coords.y) + (coords.x * @sizeOf(u16));
-    for (0..image.height) |y| {
-        var fb_start = y * fb_info.width;
-        var img_start = y * image.width;
-
-        var fb_end = fb_start + image.width;
-        _ = fb_end;
-        var img_end = img_start + image.width;
-        _ = img_end;
-
-        @memcpy(ptrDst, ptrSrc, image.width * @sizeOf(u16));
-        ptrSrc += image.width * @sizeOf(u16);
-        ptrDst += fb_info.line_length;
-    }
+    try Framebuffer.displayImage(allocator, fb.fb_ptr, fb.info, .{ .data = pixels, .width = image.width, .height = image.height }, .{});
 }

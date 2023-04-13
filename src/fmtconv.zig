@@ -35,7 +35,7 @@ fn getShiftAmount(comptime SourceType: type, comptime DestType: type) struct { a
 
 pub fn shiftLeftShiftingInLSB(comptime Type: type, x: anytype, comptime n: comptime_int) Type {
     const mask = @as(Type, (1 << n) - 1);
-    return @intCast(Type, (x << n) | ((x & 1) * mask));
+    return @intCast(Type, (@as(Type, x) << n) | ((x & 1) * mask));
 }
 
 fn make16Color(comptime RedType: type, comptime BlueType: type, comptime GreenType: type, r: anytype, g: anytype, b: anytype) u16 {
@@ -59,7 +59,7 @@ fn make16Color(comptime RedType: type, comptime BlueType: type, comptime GreenTy
                 destRed = @intCast(dest, r >> shift.amount);
             } else if (shift.direction == .Left) {
                 // destRed = @intCast(dest, r << shift.amount);
-                destRed = @intCast(dest, shiftLeftShiftingInLSB(RedType, r, shift.amount));
+                destRed = @intCast(dest, shiftLeftShiftingInLSB(dest, r, shift.amount));
             } else {
                 destRed = @as(dest, r);
             }
@@ -88,7 +88,7 @@ fn make16Color(comptime RedType: type, comptime BlueType: type, comptime GreenTy
                 destGreen = @intCast(dest, g >> shift.amount);
             } else if (shift.direction == .Left) {
                 // destGreen = @intCast(dest, g << shift.amount);
-                destGreen = @intCast(dest, shiftLeftShiftingInLSB(GreenType, g, shift.amount));
+                destGreen = @intCast(dest, shiftLeftShiftingInLSB(dest, g, shift.amount));
             } else {
                 destGreen = @as(dest, g);
             }
@@ -117,7 +117,7 @@ fn make16Color(comptime RedType: type, comptime BlueType: type, comptime GreenTy
                 destBlue = @intCast(dest, b >> shift.amount);
             } else if (shift.direction == .Left) {
                 // destBlue = @intCast(dest, b << shift.amount);
-                destBlue = @intCast(dest, shiftLeftShiftingInLSB(BlueType, b, shift.amount));
+                destBlue = @intCast(dest, shiftLeftShiftingInLSB(dest, b, shift.amount));
             } else {
                 destBlue = @as(dest, b);
             }
@@ -140,18 +140,131 @@ fn make16Color(comptime RedType: type, comptime BlueType: type, comptime GreenTy
 pub fn convertToRGB565(allocator: std.mem.Allocator, image: *img.Image) ![]u16 {
     return switch (image.pixelFormat()) {
         .invalid => @panic("Invalid format passed into convertToRGB565"),
-        .indexed1 => @panic("TODO: indexed1"),
-        .indexed2 => @panic("TODO: indexed2"),
-        .indexed4 => @panic("TODO: indexed4"),
-        .indexed8 => @panic("TODO: indexed8"),
-        .indexed16 => @panic("TODO: indexed16"),
-        .grayscale1 => @panic("TODO: grayscale1"),
-        .grayscale2 => @panic("TODO: grayscale2"),
-        .grayscale4 => @panic("TODO: grayscale4"),
-        .grayscale8 => @panic("TODO: grayscale8"),
-        .grayscale16 => @panic("TODO: grayscale16"),
-        .grayscale8Alpha => @panic("TODO: grayscale8Alpha"),
-        .grayscale16Alpha => @panic("TODO: grayscale16Alpha"),
+        .indexed1 => {
+            var pixels = try allocator.alloc(u16, image.width * image.height);
+
+            var old_pixels: []u1 = image.pixels.indexed1.indices;
+            for (pixels, 0..) |*pixel, i| {
+                const col = image.pixels.indexed1.palette[old_pixels[i]];
+                pixel.* = make16Color(u8, u8, u8, col.r, col.g, col.b);
+            }
+
+            return pixels;
+        },
+        .indexed2 => {
+            var pixels = try allocator.alloc(u16, image.width * image.height);
+
+            var old_pixels: []u2 = image.pixels.indexed2.indices;
+            for (pixels, 0..) |*pixel, i| {
+                const col = image.pixels.indexed2.palette[old_pixels[i]];
+                pixel.* = make16Color(u8, u8, u8, col.r, col.g, col.b);
+            }
+
+            return pixels;
+        },
+        .indexed4 => {
+            var pixels = try allocator.alloc(u16, image.width * image.height);
+
+            var old_pixels: []u4 = image.pixels.indexed4.indices;
+            for (pixels, 0..) |*pixel, i| {
+                const col = image.pixels.indexed4.palette[old_pixels[i]];
+                pixel.* = make16Color(u8, u8, u8, col.r, col.g, col.b);
+            }
+
+            return pixels;
+        },
+        .indexed8 => {
+            var pixels = try allocator.alloc(u16, image.width * image.height);
+
+            var old_pixels: []u8 = image.pixels.indexed8.indices;
+            for (pixels, 0..) |*pixel, i| {
+                const col = image.pixels.indexed8.palette[old_pixels[i]];
+                pixel.* = make16Color(u8, u8, u8, col.r, col.g, col.b);
+            }
+
+            return pixels;
+        },
+        .indexed16 => {
+            var pixels = try allocator.alloc(u16, image.width * image.height);
+
+            var old_pixels: []u16 = image.pixels.indexed16.indices;
+            for (pixels, 0..) |*pixel, i| {
+                const col = image.pixels.indexed16.palette[old_pixels[i]];
+                pixel.* = make16Color(u8, u8, u8, col.r, col.g, col.b);
+            }
+
+            return pixels;
+        },
+        .grayscale1 => {
+            var pixels = try allocator.alloc(u16, image.width * image.height);
+
+            var old_pixels: []img.color.Grayscale1 = image.pixels.grayscale1;
+            for (pixels, 0..) |*pixel, i| {
+                pixel.* = make16Color(u1, u1, u1, old_pixels[i].value, old_pixels[i].value, old_pixels[i].value);
+            }
+
+            return pixels;
+        },
+        .grayscale2 => {
+            var pixels = try allocator.alloc(u16, image.width * image.height);
+
+            var old_pixels: []img.color.Grayscale2 = image.pixels.grayscale2;
+            for (pixels, 0..) |*pixel, i| {
+                pixel.* = make16Color(u2, u2, u2, old_pixels[i].value, old_pixels[i].value, old_pixels[i].value);
+            }
+
+            return pixels;
+        },
+        .grayscale4 => {
+            var pixels = try allocator.alloc(u16, image.width * image.height);
+
+            var old_pixels: []img.color.Grayscale4 = image.pixels.grayscale4;
+            for (pixels, 0..) |*pixel, i| {
+                pixel.* = make16Color(u4, u4, u4, old_pixels[i].value, old_pixels[i].value, old_pixels[i].value);
+            }
+
+            return pixels;
+        },
+        .grayscale8 => {
+            var pixels = try allocator.alloc(u16, image.width * image.height);
+
+            var old_pixels: []img.color.Grayscale8 = image.pixels.grayscale8;
+            for (pixels, 0..) |*pixel, i| {
+                pixel.* = make16Color(u8, u8, u8, old_pixels[i].value, old_pixels[i].value, old_pixels[i].value);
+            }
+
+            return pixels;
+        },
+        .grayscale16 => {
+            var pixels = try allocator.alloc(u16, image.width * image.height);
+
+            var old_pixels: []img.color.Grayscale16 = image.pixels.grayscale16;
+            for (pixels, 0..) |*pixel, i| {
+                pixel.* = make16Color(u16, u16, u16, old_pixels[i].value, old_pixels[i].value, old_pixels[i].value);
+            }
+
+            return pixels;
+        },
+        .grayscale8Alpha => {
+            var pixels = try allocator.alloc(u16, image.width * image.height);
+
+            var old_pixels: []img.color.Grayscale8Alpha = image.pixels.grayscale8Alpha;
+            for (pixels, 0..) |*pixel, i| {
+                pixel.* = make16Color(u8, u8, u8, old_pixels[i].value, old_pixels[i].value, old_pixels[i].value);
+            }
+
+            return pixels;
+        },
+        .grayscale16Alpha => {
+            var pixels = try allocator.alloc(u16, image.width * image.height);
+
+            var old_pixels: []img.color.Grayscale16Alpha = image.pixels.grayscale16Alpha;
+            for (pixels, 0..) |*pixel, i| {
+                pixel.* = make16Color(u16, u16, u16, old_pixels[i].value, old_pixels[i].value, old_pixels[i].value);
+            }
+
+            return pixels;
+        },
         //basically just cast the data from rgb565 to u16, same format
         .rgb565 => @ptrCast([*]u16, image.pixels.rgb565.ptr)[0..image.pixels.rgb565.len],
         .rgb555 => {
