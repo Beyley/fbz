@@ -38,7 +38,7 @@ pub fn shiftLeftShiftingInLSB(comptime Type: type, x: anytype, comptime n: compt
     return @intCast((@as(Type, x) << n) | ((x & 1) * mask));
 }
 
-fn make16Color(comptime RedType: type, comptime BlueType: type, comptime GreenType: type, r: anytype, g: anytype, b: anytype) u16 {
+fn make16Color(comptime RedType: type, comptime BlueType: type, comptime GreenType: type, r: anytype, g: anytype, b: anytype) img.color.Rgb565 {
     @setFloatMode(std.builtin.FloatMode.Optimized);
 
     var destRed: u5 = 0;
@@ -132,16 +132,18 @@ fn make16Color(comptime RedType: type, comptime BlueType: type, comptime GreenTy
         else => @compileError("Converting from that format is not supported!"),
     }
 
-    return (((@as(u16, destRed)) << 11) |
-        ((@as(u16, destGreen)) << 5) |
-        (@as(u16, destBlue)));
+    return .{
+        .r = destRed,
+        .g = destGreen,
+        .b = destBlue,
+    };
 }
 
-pub fn convertToRGB565(allocator: std.mem.Allocator, image: *img.Image) ![]u16 {
+pub fn convertToRGB565(allocator: std.mem.Allocator, image: *img.Image) ![]img.color.Rgb565 {
     return switch (image.pixelFormat()) {
         .invalid => @panic("Invalid format passed into convertToRGB565"),
         .indexed1 => {
-            const pixels = try allocator.alloc(u16, image.width * image.height);
+            const pixels = try allocator.alloc(img.color.Rgb565, image.width * image.height);
 
             const old_pixels: []u1 = image.pixels.indexed1.indices;
             for (pixels, 0..) |*pixel, i| {
@@ -152,7 +154,7 @@ pub fn convertToRGB565(allocator: std.mem.Allocator, image: *img.Image) ![]u16 {
             return pixels;
         },
         .indexed2 => {
-            const pixels = try allocator.alloc(u16, image.width * image.height);
+            const pixels = try allocator.alloc(img.color.Rgb565, image.width * image.height);
 
             const old_pixels: []u2 = image.pixels.indexed2.indices;
             for (pixels, 0..) |*pixel, i| {
@@ -163,7 +165,7 @@ pub fn convertToRGB565(allocator: std.mem.Allocator, image: *img.Image) ![]u16 {
             return pixels;
         },
         .indexed4 => {
-            const pixels = try allocator.alloc(u16, image.width * image.height);
+            const pixels = try allocator.alloc(img.color.Rgb565, image.width * image.height);
 
             const old_pixels: []u4 = image.pixels.indexed4.indices;
             for (pixels, 0..) |*pixel, i| {
@@ -174,7 +176,7 @@ pub fn convertToRGB565(allocator: std.mem.Allocator, image: *img.Image) ![]u16 {
             return pixels;
         },
         .indexed8 => {
-            const pixels = try allocator.alloc(u16, image.width * image.height);
+            const pixels = try allocator.alloc(img.color.Rgb565, image.width * image.height);
 
             const old_pixels: []u8 = image.pixels.indexed8.indices;
             for (pixels, 0..) |*pixel, i| {
@@ -185,7 +187,7 @@ pub fn convertToRGB565(allocator: std.mem.Allocator, image: *img.Image) ![]u16 {
             return pixels;
         },
         .indexed16 => {
-            const pixels = try allocator.alloc(u16, image.width * image.height);
+            const pixels = try allocator.alloc(img.color.Rgb565, image.width * image.height);
 
             const old_pixels: []u16 = image.pixels.indexed16.indices;
             for (pixels, 0..) |*pixel, i| {
@@ -196,7 +198,7 @@ pub fn convertToRGB565(allocator: std.mem.Allocator, image: *img.Image) ![]u16 {
             return pixels;
         },
         .grayscale1 => {
-            const pixels = try allocator.alloc(u16, image.width * image.height);
+            const pixels = try allocator.alloc(img.color.Rgb565, image.width * image.height);
 
             const old_pixels: []img.color.Grayscale1 = image.pixels.grayscale1;
             for (pixels, 0..) |*pixel, i| {
@@ -206,7 +208,7 @@ pub fn convertToRGB565(allocator: std.mem.Allocator, image: *img.Image) ![]u16 {
             return pixels;
         },
         .grayscale2 => {
-            const pixels = try allocator.alloc(u16, image.width * image.height);
+            const pixels = try allocator.alloc(img.color.Rgb565, image.width * image.height);
 
             const old_pixels: []img.color.Grayscale2 = image.pixels.grayscale2;
             for (pixels, 0..) |*pixel, i| {
@@ -216,7 +218,7 @@ pub fn convertToRGB565(allocator: std.mem.Allocator, image: *img.Image) ![]u16 {
             return pixels;
         },
         .grayscale4 => {
-            const pixels = try allocator.alloc(u16, image.width * image.height);
+            const pixels = try allocator.alloc(img.color.Rgb565, image.width * image.height);
 
             const old_pixels: []img.color.Grayscale4 = image.pixels.grayscale4;
             for (pixels, 0..) |*pixel, i| {
@@ -226,7 +228,7 @@ pub fn convertToRGB565(allocator: std.mem.Allocator, image: *img.Image) ![]u16 {
             return pixels;
         },
         .grayscale8 => {
-            const pixels = try allocator.alloc(u16, image.width * image.height);
+            const pixels = try allocator.alloc(img.color.Rgb565, image.width * image.height);
 
             const old_pixels: []img.color.Grayscale8 = image.pixels.grayscale8;
             for (pixels, 0..) |*pixel, i| {
@@ -236,7 +238,7 @@ pub fn convertToRGB565(allocator: std.mem.Allocator, image: *img.Image) ![]u16 {
             return pixels;
         },
         .grayscale16 => {
-            const pixels = try allocator.alloc(u16, image.width * image.height);
+            const pixels = try allocator.alloc(img.color.Rgb565, image.width * image.height);
 
             const old_pixels: []img.color.Grayscale16 = image.pixels.grayscale16;
             for (pixels, 0..) |*pixel, i| {
@@ -246,7 +248,7 @@ pub fn convertToRGB565(allocator: std.mem.Allocator, image: *img.Image) ![]u16 {
             return pixels;
         },
         .grayscale8Alpha => {
-            const pixels = try allocator.alloc(u16, image.width * image.height);
+            const pixels = try allocator.alloc(img.color.Rgb565, image.width * image.height);
 
             const old_pixels: []img.color.Grayscale8Alpha = image.pixels.grayscale8Alpha;
             for (pixels, 0..) |*pixel, i| {
@@ -256,7 +258,7 @@ pub fn convertToRGB565(allocator: std.mem.Allocator, image: *img.Image) ![]u16 {
             return pixels;
         },
         .grayscale16Alpha => {
-            const pixels = try allocator.alloc(u16, image.width * image.height);
+            const pixels = try allocator.alloc(img.color.Rgb565, image.width * image.height);
 
             const old_pixels: []img.color.Grayscale16Alpha = image.pixels.grayscale16Alpha;
             for (pixels, 0..) |*pixel, i| {
@@ -266,9 +268,9 @@ pub fn convertToRGB565(allocator: std.mem.Allocator, image: *img.Image) ![]u16 {
             return pixels;
         },
         //basically just cast the data from rgb565 to u16, same format
-        .rgb565 => @as([*]u16, @ptrCast(image.pixels.rgb565.ptr))[0..image.pixels.rgb565.len],
+        .rgb565 => image.pixels.rgb565,
         .rgb555 => {
-            const pixels = try allocator.alloc(u16, image.width * image.height);
+            const pixels = try allocator.alloc(img.color.Rgb565, image.width * image.height);
 
             const old_pixels: []img.color.Rgb555 = image.pixels.rgb555;
             for (pixels, 0..) |*pixel, i| {
@@ -278,7 +280,7 @@ pub fn convertToRGB565(allocator: std.mem.Allocator, image: *img.Image) ![]u16 {
             return pixels;
         },
         .rgb24 => {
-            const pixels = try allocator.alloc(u16, image.width * image.height);
+            const pixels = try allocator.alloc(img.color.Rgb565, image.width * image.height);
 
             const old_pixels: []img.color.Rgb24 = image.pixels.rgb24;
             for (pixels, 0..) |*pixel, i| {
@@ -288,7 +290,7 @@ pub fn convertToRGB565(allocator: std.mem.Allocator, image: *img.Image) ![]u16 {
             return pixels;
         },
         .rgba32 => {
-            const pixels = try allocator.alloc(u16, image.width * image.height);
+            const pixels = try allocator.alloc(img.color.Rgb565, image.width * image.height);
 
             const old_pixels: []img.color.Rgba32 = image.pixels.rgba32;
             for (pixels, 0..) |*pixel, i| {
@@ -298,7 +300,7 @@ pub fn convertToRGB565(allocator: std.mem.Allocator, image: *img.Image) ![]u16 {
             return pixels;
         },
         .bgr24 => {
-            const pixels = try allocator.alloc(u16, image.width * image.height);
+            const pixels = try allocator.alloc(img.color.Rgb565, image.width * image.height);
 
             const old_pixels: []img.color.Bgr24 = image.pixels.bgr24;
             for (pixels, 0..) |*pixel, i| {
@@ -308,7 +310,7 @@ pub fn convertToRGB565(allocator: std.mem.Allocator, image: *img.Image) ![]u16 {
             return pixels;
         },
         .bgra32 => {
-            const pixels = try allocator.alloc(u16, image.width * image.height);
+            const pixels = try allocator.alloc(img.color.Rgb565, image.width * image.height);
 
             const old_pixels: []img.color.Bgra32 = image.pixels.bgra32;
             for (pixels, 0..) |*pixel, i| {
@@ -318,7 +320,7 @@ pub fn convertToRGB565(allocator: std.mem.Allocator, image: *img.Image) ![]u16 {
             return pixels;
         },
         .rgb48 => {
-            const pixels = try allocator.alloc(u16, image.width * image.height);
+            const pixels = try allocator.alloc(img.color.Rgb565, image.width * image.height);
 
             const old_pixels: []img.color.Rgb48 = image.pixels.rgb48;
             for (pixels, 0..) |*pixel, i| {
@@ -328,7 +330,7 @@ pub fn convertToRGB565(allocator: std.mem.Allocator, image: *img.Image) ![]u16 {
             return pixels;
         },
         .rgba64 => {
-            const pixels = try allocator.alloc(u16, image.width * image.height);
+            const pixels = try allocator.alloc(img.color.Rgb565, image.width * image.height);
 
             const old_pixels: []img.color.Rgba64 = image.pixels.rgba64;
             for (pixels, 0..) |*pixel, i| {
@@ -338,7 +340,7 @@ pub fn convertToRGB565(allocator: std.mem.Allocator, image: *img.Image) ![]u16 {
             return pixels;
         },
         .float32 => {
-            const pixels = try allocator.alloc(u16, image.width * image.height);
+            const pixels = try allocator.alloc(img.color.Rgb565, image.width * image.height);
 
             const old_pixels: []img.color.Colorf32 = image.pixels.float32;
             for (pixels, 0..) |*pixel, i| {

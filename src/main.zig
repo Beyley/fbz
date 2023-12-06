@@ -163,14 +163,14 @@ pub fn main() !void {
         //Disable cursor blinking on the framebuffer
         try Framebuffer.setCursorBlink(false);
 
-        const fb = try Framebuffer.prepareFramebuffer(framebuffer_path);
+        const fb = try Framebuffer.open(framebuffer_path);
         defer fb.file.close();
 
         for (display_images) |image| {
             //HACK: This is a hack to slow down the display of images because std.time.sleep() is inconsistent in oc2
             //NOTE: at 100MHz, 4 iterations is about 0.5 seconds
             for (0..4) |_| {
-                try Framebuffer.displayImage(allocator, fb.fb_ptr, fb.info, image, .{ .never_clear_fb = true });
+                try Framebuffer.displayImage(fb, image, .{ .never_clear_fb = true });
             }
         }
 
@@ -181,11 +181,11 @@ pub fn main() !void {
 }
 
 fn displaySingleImage(allocator: std.mem.Allocator, framebuffer_path: []const u8, image: *Image) !void {
-    const fb = try Framebuffer.prepareFramebuffer(framebuffer_path);
+    const fb = try Framebuffer.open(framebuffer_path);
     defer fb.file.close();
 
-    const pixels: []u16 = try FormatConvert.convertToRGB565(allocator, image);
+    const pixels: []img.color.Rgb565 = try FormatConvert.convertToRGB565(allocator, image);
     defer allocator.free(pixels);
 
-    try Framebuffer.displayImage(allocator, fb.fb_ptr, fb.info, .{ .data = pixels, .width = image.width, .height = image.height }, .{});
+    try Framebuffer.displayImage(fb, .{ .data = pixels, .width = image.width, .height = image.height }, .{});
 }

@@ -12,79 +12,49 @@ const c = @cImport({
     @cInclude("sys/mman.h");
 });
 
-pub const FramebufferInfo = struct {
-    ///width of the framebuffer in pixels
-    width: usize,
-    ///height of the framebuffer in pixels
-    height: usize,
-    ///bits per pixel
-    bits_per_pixel: u8,
-    ///bytes per line
-    line_length: usize,
-    ///length of the framebuffer in bytes
-    mem_length: usize,
-};
+const Self = @This();
+
+/// The width of the framebuffer in pixels
+width: usize,
+/// The height of the framebuffer in pixel
+height: usize,
+/// The amount of bits per pixel
+bits_per_pixel: u8,
+/// Bytes per line
+bytes_per_line: usize,
+/// The contents of the framebuffer
+contents: []img.color.Rgb565,
+/// The file handle of the framebuffer
+file: std.fs.File,
 
 const Errors = error{
     ScreenInfoFail,
     ScreenFixFail,
 };
 
-pub fn getFramebufferInfo(file: fs.File) !FramebufferInfo {
-    var info: c.fb_var_screeninfo = undefined;
-    if (std.c.ioctl(file.handle, c.FBIOGET_VSCREENINFO, &info) != 0) {
-        return Errors.ScreenInfoFail;
-    }
-
-    var fix: c.fb_fix_screeninfo = undefined;
-    if (std.c.ioctl(file.handle, c.FBIOGET_FSCREENINFO, &fix) != 0) {
-        return Errors.ScreenFixFail;
-    }
-
-    const pix_x = (fix.line_length * 8) / info.bits_per_pixel;
-    const pix_y = fix.smem_len / fix.line_length;
-
-    return .{
-        .width = pix_x,
-        .height = pix_y,
-        .bits_per_pixel = @intCast(info.bits_per_pixel),
-        .line_length = fix.line_length,
-        .mem_length = fix.smem_len,
-    };
+fn clearFramebuffer(fb: Self) void {
+    @memset(fb.contents, .{ .r = 0, .g = 0, .b = 0 });
 }
 
-pub fn mapFramebuffer(file: fs.File, info: FramebufferInfo) !*anyopaque {
-    const mem = std.c.mmap(null, info.mem_length, c.PROT_READ | c.PROT_WRITE, c.MAP_SHARED, file.handle, 0);
-    if (mem == c.MAP_FAILED) {
-        return error.OutOfMemory;
-    }
-
-    return mem;
-}
-
-pub fn clearFramebuffer(fb: [*]u8, info: FramebufferInfo) void {
-    for (fb[0..info.mem_length]) |*byte| {
-        byte.* = 0;
-    }
-}
-
+///Sets the state of the cursor blink on the framebuffer console
 pub fn setCursorBlink(state: bool) !void {
     var file: fs.File = try fs.openFileAbsolute("/sys/class/graphics/fbcon/cursor_blink", .{ .mode = .read_write });
     defer file.close();
 
+    const writer = file.writer();
     if (state) {
-        try file.writer().print("1", .{});
+        try writer.print("1", .{});
     } else {
-        try file.writer().print("0", .{});
+        try writer.print("0", .{});
     }
 }
 
 ///Centers an image from a top left origin
-fn centerImage(image: DisplayImage, fb_info: FramebufferInfo) struct { x: usize, y: usize } {
-    const x = (fb_info.width - image.width) / 2;
-    const y = (fb_info.height - image.height) / 2;
+fn centerImage(image: DisplayImage, fb: Self) @Vector(2, usize) {
+    const x = (fb.width - image.width) / 2;
+    const y = (fb.height - image.height) / 2;
 
-    return .{ .x = x, .y = y };
+    return .{ x, y };
 }
 
 /// Converts an image to RGB565, the caller owns the memory
@@ -96,7 +66,7 @@ fn convertImage(allocator: std.mem.Allocator, image: *Image) ![]u16 {
 
 pub const DisplayImage = struct {
     /// The converted image data, in RGB565 format
-    data: []u16,
+    data: []img.color.Rgb565,
     /// The width of the image
     width: usize,
     /// The height of the image
@@ -108,52 +78,64 @@ const DisplayImageSettings = struct {
     never_clear_fb: bool = false,
 };
 
-/// Opens the framebuffer, maps it to memory, and returns a pointer to the framebuffer
-pub fn prepareFramebuffer(framebuffer_path: []const u8) !struct { info: FramebufferInfo, fb_ptr: [*]u8, file: fs.File } {
-    const file: fs.File = try fs.openFileAbsolute(framebuffer_path, .{ .mode = .read_write });
+pub fn open(path: []const u8) !Self {
+    const file: fs.File = try fs.openFileAbsolute(path, .{ .mode = .read_write });
 
-    const fb_info = try getFramebufferInfo(file);
+    var info: c.fb_var_screeninfo = undefined;
+    if (std.c.ioctl(file.handle, c.FBIOGET_VSCREENINFO, &info) != 0) {
+        return Errors.ScreenInfoFail;
+    }
 
-    //get a map of the framebuffer
-    const fb_ptr_raw = try mapFramebuffer(file, fb_info);
-    const fb: [*]u8 = @ptrCast(@alignCast(fb_ptr_raw));
+    var fix: c.fb_fix_screeninfo = undefined;
+    if (std.c.ioctl(file.handle, c.FBIOGET_FSCREENINFO, &fix) != 0) {
+        return Errors.ScreenFixFail;
+    }
 
-    return .{ .info = fb_info, .fb_ptr = fb, .file = file };
+    const fb_ptr: [*]u16 = @alignCast(@ptrCast(std.c.mmap(null, fix.smem_len, c.PROT_READ | c.PROT_WRITE, c.MAP_SHARED, file.handle, 0)));
+    if (@as(*anyopaque, fb_ptr) == c.MAP_FAILED) {
+        return error.OutOfMemory;
+    }
+
+    return .{
+        .width = info.xres,
+        .height = info.yres,
+        .bits_per_pixel = @intCast(info.bits_per_pixel),
+        .bytes_per_line = fix.line_length,
+        .contents = @ptrCast(fb_ptr[0..@divExact(fix.smem_len, 2)]),
+        .file = file,
+    };
 }
 
-pub fn displayImage(allocator: std.mem.Allocator, fb: [*]u8, fb_info: FramebufferInfo, image: DisplayImage, settings: DisplayImageSettings) !void {
-    const coords = centerImage(image, fb_info);
-    log("Drawing image at {d}, {d}", .{ coords.x, coords.y });
+pub fn displayImage(fb: Self, image: DisplayImage, settings: DisplayImageSettings) !void {
+    const coords = centerImage(image, fb);
+    log("Drawing image at {d}", .{coords});
 
     //we dont support, scaling images, so lets die if its too tall or too wide
-    if (image.width > fb_info.width or image.height > fb_info.height) {
+    if (image.width > fb.width or image.height > fb.height) {
         return error.ImageTooWideOrTall;
     }
 
-    //get a pointer to the image data, in u8 format
-    const image_pixels: [*]u8 = @ptrCast(image.data);
-
     //if the image is smaller than the framebuffer, clear the framebuffer, unless we are told never to clear
-    if ((image.width != fb_info.width or image.height != fb_info.height) and !settings.never_clear_fb) {
-        clearFramebuffer(fb, fb_info);
+    if ((image.width != fb.width or image.height != fb.height) and !settings.never_clear_fb) {
+        clearFramebuffer(fb);
     }
 
-    var ptrSrc = image_pixels;
-    var ptrDst = fb + (fb_info.line_length * coords.y) + (coords.x * @sizeOf(u16));
+    //If the image width matches the framebuffer width, optimize down to a single memcpy
+    if (image.width == fb.width) {
+        const fb_start = fb.width * coords[1];
+
+        @memcpy(fb.contents[fb_start .. fb_start + (image.height * image.width)], image.data);
+
+        // @memcpy(fb.contents, image.data);
+        return;
+    }
+
     for (0..image.height) |y| {
-        const fb_start = y * fb_info.width;
-        const img_start = y * image.width;
+        const fb_start = fb.width * (y + coords[1]) + coords[0];
 
-        const fb_end = fb_start + image.width;
-        _ = fb_end;
-        const img_end = img_start + image.width;
-        _ = img_end;
-
-        @memcpy(ptrDst[0..(image.width * @sizeOf(u16))], ptrSrc[0..(image.width * @sizeOf(u16))]);
-        // @memcpy(ptrDst, ptrSrc, image.width * @sizeOf(u16));
-        ptrSrc += image.width * @sizeOf(u16);
-        ptrDst += fb_info.line_length;
+        @memcpy(
+            fb.contents[fb_start .. fb_start + image.width],
+            image.data[image.width * y .. image.width * y + image.width],
+        );
     }
-
-    _ = allocator;
 }
