@@ -1,11 +1,7 @@
 const std = @import("std");
 
-// Although this function looks imperative, note that its job is to
-// declaratively construct a build graph that will be executed by an external
-// runner.
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
-
     const optimize = b.standardOptimizeOption(.{});
 
     const exe = b.addExecutable(.{
@@ -14,6 +10,8 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    exe.addModule("zigimg", b.dependency("zigimg", .{}).module("zigimg"));
+    exe.addModule("zig-clap", b.dependency("clap", .{}).module("clap"));
 
     //We need libc to do ioctls on the framebuffer
     exe.linkLibC();
@@ -29,9 +27,6 @@ pub fn build(b: *std.Build) void {
 
     const run_unit_tests = b.addRunArtifact(main_tests);
 
-    // This creates a build step. It will be visible in the `zig build --help` menu,
-    // and can be selected like this: `zig build test`
-    // This will evaluate the `test` step rather than the default, which is "install".
     const test_step = b.step("test", "Run library tests");
     test_step.dependOn(&run_unit_tests.step);
 }

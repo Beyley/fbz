@@ -1,0 +1,19 @@
+.{
+    .name = "fbz",
+    .version = "0.0.0",
+    .dependencies = .{
+        .zigimg = .{
+            .url = "https://github.com/zigimg/zigimg/archive/cc42820a7f4a85cff970738eef61622ea510697e.tar.gz",
+            .hash = "12202349385482a12c1c7a5dc72ef040106d14829961026cfe753995aa1860966a86",
+        },
+        .clap = .{
+            .url = "https://github.com/Hejsil/zig-clap/archive/c394594d218c3c936547e590b461e69e6e0b20c4.tar.gz",
+            .hash = "122066d86920926a4a674adaaa10f158dc4961c2a47e588e605765455d74ca72c2ad",
+        }
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src/",
+    },
+}

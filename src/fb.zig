@@ -1,5 +1,5 @@
 const std = @import("std");
-const img = @import("zigimg/zigimg.zig");
+const img = @import("zigimg");
 const fs = std.fs;
 
 const Image = img.Image;
@@ -41,13 +41,13 @@ pub fn getFramebufferInfo(file: fs.File) !FramebufferInfo {
         return Errors.ScreenFixFail;
     }
 
-    var pix_x = (fix.line_length * 8) / info.bits_per_pixel;
-    var pix_y = fix.smem_len / fix.line_length;
+    const pix_x = (fix.line_length * 8) / info.bits_per_pixel;
+    const pix_y = fix.smem_len / fix.line_length;
 
     return .{
         .width = pix_x,
         .height = pix_y,
-        .bits_per_pixel = @intCast(u8, info.bits_per_pixel),
+        .bits_per_pixel = @intCast(info.bits_per_pixel),
         .line_length = fix.line_length,
         .mem_length = fix.smem_len,
     };
@@ -81,15 +81,15 @@ pub fn setCursorBlink(state: bool) !void {
 
 ///Centers an image from a top left origin
 fn centerImage(image: DisplayImage, fb_info: FramebufferInfo) struct { x: usize, y: usize } {
-    var x = (fb_info.width - image.width) / 2;
-    var y = (fb_info.height - image.height) / 2;
+    const x = (fb_info.width - image.width) / 2;
+    const y = (fb_info.height - image.height) / 2;
 
     return .{ .x = x, .y = y };
 }
 
 /// Converts an image to RGB565, the caller owns the memory
 fn convertImage(allocator: std.mem.Allocator, image: *Image) ![]u16 {
-    var pixels: []u16 = try FormatConvert.convertToRGB565(allocator, image);
+    const pixels: []u16 = try FormatConvert.convertToRGB565(allocator, image);
 
     return pixels;
 }
@@ -110,19 +110,19 @@ const DisplayImageSettings = struct {
 
 /// Opens the framebuffer, maps it to memory, and returns a pointer to the framebuffer
 pub fn prepareFramebuffer(framebuffer_path: []const u8) !struct { info: FramebufferInfo, fb_ptr: [*]u8, file: fs.File } {
-    var file: fs.File = try fs.openFileAbsolute(framebuffer_path, .{ .mode = .read_write });
+    const file: fs.File = try fs.openFileAbsolute(framebuffer_path, .{ .mode = .read_write });
 
-    var fb_info = try getFramebufferInfo(file);
+    const fb_info = try getFramebufferInfo(file);
 
     //get a map of the framebuffer
-    var fb_ptr_raw = try mapFramebuffer(file, fb_info);
-    var fb = @ptrCast([*]u8, @alignCast(@alignOf(u8), fb_ptr_raw));
+    const fb_ptr_raw = try mapFramebuffer(file, fb_info);
+    const fb: [*]u8 = @ptrCast(@alignCast(fb_ptr_raw));
 
     return .{ .info = fb_info, .fb_ptr = fb, .file = file };
 }
 
 pub fn displayImage(allocator: std.mem.Allocator, fb: [*]u8, fb_info: FramebufferInfo, image: DisplayImage, settings: DisplayImageSettings) !void {
-    var coords = centerImage(image, fb_info);
+    const coords = centerImage(image, fb_info);
     log("Drawing image at {d}, {d}", .{ coords.x, coords.y });
 
     //we dont support, scaling images, so lets die if its too tall or too wide
@@ -131,7 +131,7 @@ pub fn displayImage(allocator: std.mem.Allocator, fb: [*]u8, fb_info: Framebuffe
     }
 
     //get a pointer to the image data, in u8 format
-    var image_pixels: [*]u8 = @ptrCast([*]u8, image.data);
+    const image_pixels: [*]u8 = @ptrCast(image.data);
 
     //if the image is smaller than the framebuffer, clear the framebuffer, unless we are told never to clear
     if ((image.width != fb_info.width or image.height != fb_info.height) and !settings.never_clear_fb) {
@@ -141,15 +141,16 @@ pub fn displayImage(allocator: std.mem.Allocator, fb: [*]u8, fb_info: Framebuffe
     var ptrSrc = image_pixels;
     var ptrDst = fb + (fb_info.line_length * coords.y) + (coords.x * @sizeOf(u16));
     for (0..image.height) |y| {
-        var fb_start = y * fb_info.width;
-        var img_start = y * image.width;
+        const fb_start = y * fb_info.width;
+        const img_start = y * image.width;
 
-        var fb_end = fb_start + image.width;
+        const fb_end = fb_start + image.width;
         _ = fb_end;
-        var img_end = img_start + image.width;
+        const img_end = img_start + image.width;
         _ = img_end;
 
-        @memcpy(ptrDst, ptrSrc, image.width * @sizeOf(u16));
+        @memcpy(ptrDst[0..(image.width * @sizeOf(u16))], ptrSrc[0..(image.width * @sizeOf(u16))]);
+        // @memcpy(ptrDst, ptrSrc, image.width * @sizeOf(u16));
         ptrSrc += image.width * @sizeOf(u16);
         ptrDst += fb_info.line_length;
     }

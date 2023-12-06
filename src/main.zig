@@ -1,6 +1,6 @@
 const std = @import("std");
-const img = @import("zigimg/zigimg.zig");
-const clap = @import("zig-clap/clap.zig");
+const img = @import("zigimg");
+const clap = @import("zig-clap");
 
 const Image = img.Image;
 
@@ -19,14 +19,14 @@ pub fn log(comptime format: []const u8, args: anytype) void {
 
     const stdout = std.io.getStdOut().writer();
 
-    std.io.getStdOut().lock(.Exclusive) catch {};
+    std.io.getStdOut().lock(.exclusive) catch {};
     defer std.io.getStdOut().unlock();
     nosuspend stdout.print(format ++ "\n", args) catch return;
 }
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer if (gpa.deinit()) @panic("Memory leak detected!");
+    defer if (gpa.deinit() == .leak) @panic("Memory leak detected!");
     var allocator = gpa.allocator();
 
     // Parse the CLI parameters that will be used
@@ -47,7 +47,7 @@ pub fn main() !void {
         return err;
     };
     defer res.deinit();
-    var args = res.args;
+    const args = res.args;
 
     if (args.silent != 0)
         silent = true;
@@ -66,10 +66,10 @@ pub fn main() !void {
     //If the user didn't specify an image, print an error and exit
     if (res.positionals.len == 1) {
         //get the file extension
-        var extension = std.fs.path.extension(res.positionals[0]);
+        const extension = std.fs.path.extension(res.positionals[0]);
 
         //try to open the image file
-        var file = try std.fs.cwd().openFile(res.positionals[0], .{});
+        const file = try std.fs.cwd().openFile(res.positionals[0], .{});
 
         //create the image stream
         var stream: Image.Stream = .{ .file = file };
@@ -91,7 +91,7 @@ pub fn main() !void {
             log("Loading BMP file", .{});
 
             //load the image
-            var image: Image = try img.bmp.Bitmap.readImage(allocator, &stream);
+            var image: Image = try img.bmp.BMP.readImage(allocator, &stream);
             defer image.deinit();
 
             log("Loaded BMP file with size {d}x{d}", .{ image.width, image.height });
@@ -184,7 +184,7 @@ fn displaySingleImage(allocator: std.mem.Allocator, framebuffer_path: []const u8
     const fb = try Framebuffer.prepareFramebuffer(framebuffer_path);
     defer fb.file.close();
 
-    var pixels: []u16 = try FormatConvert.convertToRGB565(allocator, image);
+    const pixels: []u16 = try FormatConvert.convertToRGB565(allocator, image);
     defer allocator.free(pixels);
 
     try Framebuffer.displayImage(allocator, fb.fb_ptr, fb.info, .{ .data = pixels, .width = image.width, .height = image.height }, .{});
