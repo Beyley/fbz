@@ -23,7 +23,7 @@ bits_per_pixel: u8,
 /// Bytes per line
 bytes_per_line: usize,
 /// The contents of the framebuffer
-contents: []img.color.Rgb565,
+// contents: []img.color.Rgb565,
 /// The file handle of the framebuffer
 file: std.fs.File,
 
@@ -31,10 +31,6 @@ const Errors = error{
     ScreenInfoFail,
     ScreenFixFail,
 };
-
-fn clearFramebuffer(fb: Self) void {
-    @memset(fb.contents, .{ .r = 0, .g = 0, .b = 0 });
-}
 
 ///Sets the state of the cursor blink on the framebuffer console
 pub fn setCursorBlink(state: bool) !void {
@@ -91,22 +87,16 @@ pub fn open(path: []const u8) !Self {
         return Errors.ScreenFixFail;
     }
 
-    const fb_ptr: [*]u16 = @alignCast(@ptrCast(std.c.mmap(null, fix.smem_len, c.PROT_READ | c.PROT_WRITE, c.MAP_SHARED, file.handle, 0)));
-    if (@as(*anyopaque, fb_ptr) == c.MAP_FAILED) {
-        return error.OutOfMemory;
-    }
-
     return .{
         .width = info.xres,
         .height = info.yres,
         .bits_per_pixel = @intCast(info.bits_per_pixel),
         .bytes_per_line = fix.line_length,
-        .contents = @ptrCast(fb_ptr[0..@divExact(fix.smem_len, 2)]),
         .file = file,
     };
 }
 
-pub fn displayImage(fb: Self, image: DisplayImage, settings: DisplayImageSettings) !void {
+pub fn displayImage(fb: Self, image: DisplayImage, settings: DisplayImageSettings, allocator: std.mem.Allocator) !void {
     const coords = centerImage(image, fb);
     log("Drawing image at {d}", .{coords});
 
@@ -115,27 +105,30 @@ pub fn displayImage(fb: Self, image: DisplayImage, settings: DisplayImageSetting
         return error.ImageTooWideOrTall;
     }
 
+    const contents = try allocator.alloc(img.color.Rgb565, fb.width * fb.height);
+    defer allocator.free(contents);
+
     //if the image is smaller than the framebuffer, clear the framebuffer, unless we are told never to clear
     if ((image.width != fb.width or image.height != fb.height) and !settings.never_clear_fb) {
-        clearFramebuffer(fb);
+        @memset(contents, .{ .r = 0, .g = 0, .b = 0 });
     }
 
     //If the image width matches the framebuffer width, optimize down to a single memcpy
     if (image.width == fb.width) {
         const fb_start = fb.width * coords[1];
 
-        @memcpy(fb.contents[fb_start .. fb_start + (image.height * image.width)], image.data);
+        @memcpy(contents[fb_start .. fb_start + (image.height * image.width)], image.data);
+    } else {
+        for (0..image.height) |y| {
+            const fb_start = fb.width * (y + coords[1]) + coords[0];
 
-        // @memcpy(fb.contents, image.data);
-        return;
+            @memcpy(
+                contents[fb_start .. fb_start + image.width],
+                image.data[image.width * y .. image.width * y + image.width],
+            );
+        }
     }
 
-    for (0..image.height) |y| {
-        const fb_start = fb.width * (y + coords[1]) + coords[0];
-
-        @memcpy(
-            fb.contents[fb_start .. fb_start + image.width],
-            image.data[image.width * y .. image.width * y + image.width],
-        );
-    }
+    try fb.file.writeAll(@as([*]u8, @ptrCast(@constCast(contents.ptr)))[0 .. contents.len * 2]);
+    try fb.file.seekTo(0);
 }

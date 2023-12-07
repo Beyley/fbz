@@ -168,9 +168,9 @@ pub fn main() !void {
 
         for (display_images) |image| {
             //HACK: This is a hack to slow down the display of images because std.time.sleep() is inconsistent in oc2
-            //NOTE: at 100MHz, 4 iterations is about 0.5 seconds
-            for (0..4) |_| {
-                try Framebuffer.displayImage(fb, image, .{ .never_clear_fb = true });
+            //NOTE: at 100MHz, 8 iterations is about 0.75 seconds
+            for (0..16) |_| {
+                try Framebuffer.displayImage(fb, image, .{ .never_clear_fb = true }, allocator);
             }
         }
 
@@ -187,5 +187,5 @@ fn displaySingleImage(allocator: std.mem.Allocator, framebuffer_path: []const u8
     const pixels: []img.color.Rgb565 = try FormatConvert.convertToRGB565(allocator, image);
     defer allocator.free(pixels);
 
-    try Framebuffer.displayImage(fb, .{ .data = pixels, .width = image.width, .height = image.height }, .{});
+    try Framebuffer.displayImage(fb, .{ .data = pixels, .width = image.width, .height = image.height }, .{}, allocator);
 }
